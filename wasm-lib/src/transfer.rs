@@ -11,14 +11,29 @@ use serde_json::from_str;
 use snarkvm_console_account::address::Address;
 use snarkvm_console_account::PrivateKey;
 use snarkvm_console_network::Network;
+use snarkvm_console_network_environment::Console;
 use snarkvm_console_program::{Identifier, Locator, Plaintext, ProgramID, Record, Value};
 use snarkvm_synthesizer::{ConsensusMemory, ConsensusStore, Query, Transaction, VM};
 use snarkvm_utilities::ToBytes;
 use std::path::PathBuf;
 use std::str::FromStr;
+use lazy_static::lazy_static;
 use wasm_bindgen_futures::JsFuture;
+use crate::utils::{get_credits_verifying_keys, get_credits_proving_keys, MarlinProvingKey, MarlinVerifyingKey};
+use std::sync::Arc;
+use indexmap::IndexMap;
 
 pub const CREDITS_PROVING_KEYS_T: &[u8] = include_bytes!("../credits_proving_keys");
+pub const CREDITS_VERIFYING_KEYS_T: &[u8] = include_bytes!("../credits_verifying_keys");
+
+lazy_static! {
+    pub static ref MY_CREDITS_PROVING_KEYS: IndexMap<String, Arc<MarlinProvingKey<Console>>> = {
+        get_credits_proving_keys::<Console>(CREDITS_PROVING_KEYS_T).unwrap()
+    };
+    pub static ref MY_CREDITS_VERIFYING_KEYS: IndexMap<String, Arc<MarlinVerifyingKey<Console>>> = {
+        get_credits_verifying_keys::<Console>(CREDITS_VERIFYING_KEYS_T).unwrap()
+    };
+}
 
 pub(crate) async fn transfer_internal<N: Network>(
     private_key: String,
@@ -203,8 +218,8 @@ mod tests {
             conf[1].clone(),
             conf[2].clone(),
         )
-        .await
-        .unwrap();
+            .await
+            .unwrap();
         console_log!("{}", msg)
     }
 

@@ -2412,6 +2412,7 @@ dependencies = [
  "getrandom",
  "indexmap",
  "js-sys",
+ "lazy_static",
  "rand",
  "serde",
  "serde_json",

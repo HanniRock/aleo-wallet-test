@@ -20,8 +20,8 @@ use web_sys::{Headers, Request, RequestInit, Response};
 //     #[cfg(feature = "console_error_panic_hook")]
 //     console_error_panic_hook::set_once();
 // }
-type MarlinProvingKey<N> = CircuitProvingKey<<N as Environment>::PairingCurve, MarlinHidingMode>;
-type MarlinVerifyingKey<N> = CircuitVerifyingKey<<N as Environment>::PairingCurve, MarlinHidingMode>;
+pub(crate) type MarlinProvingKey<N> = CircuitProvingKey<<N as Environment>::PairingCurve, MarlinHidingMode>;
+pub(crate) type MarlinVerifyingKey<N> = CircuitVerifyingKey<<N as Environment>::PairingCurve, MarlinHidingMode>;
 
 pub(crate) fn parse_account<N: Network>(
     private_key: Option<String>,
@@ -101,7 +101,7 @@ pub(crate) async fn get_request(endpoint: &str) -> anyhow::Result<Response> {
     }
 }
 
-fn get_credits_proving_keys<E: Environment>(data: &[u8]) -> anyhow::Result<IndexMap<String, Arc<MarlinProvingKey<E>>>> {
+pub(crate) fn get_credits_proving_keys<E: Environment>(data: &[u8]) -> anyhow::Result<IndexMap<String, Arc<MarlinProvingKey<E>>>> {
     let credits_proving_keys_raw: IndexMap<String, Vec<u8>> = bincode::deserialize(data).map_err(|err| anyhow::Error::msg(format!("failed to deserialize data: {}", err)))?;
     let mut credits_proving_keys = IndexMap::new();
     for (k, v) in credits_proving_keys_raw.iter() {
@@ -112,7 +112,7 @@ fn get_credits_proving_keys<E: Environment>(data: &[u8]) -> anyhow::Result<Index
     Ok(credits_proving_keys)
 }
 
-fn get_credits_verifying_keys<E: Environment>(data: &[u8]) -> anyhow::Result<IndexMap<String, Arc<MarlinVerifyingKey<E>>>> {
+pub(crate) fn get_credits_verifying_keys<E: Environment>(data: &[u8]) -> anyhow::Result<IndexMap<String, Arc<MarlinVerifyingKey<E>>>> {
     let credits_verifying_keys_raw: IndexMap<String, Vec<u8>> = bincode::deserialize(data).map_err(|err| anyhow::Error::msg(format!("failed to deserialize data: {}", err)))?;
     let mut credits_verifying_keys = IndexMap::new();
     for (k, v) in credits_verifying_keys_raw.iter() {
