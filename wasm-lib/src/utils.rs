@@ -1,5 +1,4 @@
 use indexmap::IndexMap;
-use snarkvm_algorithms::snark::marlin::{CircuitProvingKey, CircuitVerifyingKey, MarlinHidingMode};
 use snarkvm_console_account::{PrivateKey, ViewKey};
 use snarkvm_console_network::environment::Environment;
 use snarkvm_console_program::Network;
@@ -20,10 +19,6 @@ use web_sys::{Headers, Request, RequestInit, Response};
 //     #[cfg(feature = "console_error_panic_hook")]
 //     console_error_panic_hook::set_once();
 // }
-pub(crate) type MarlinProvingKey<N> =
-    CircuitProvingKey<<N as Environment>::PairingCurve, MarlinHidingMode>;
-pub(crate) type MarlinVerifyingKey<N> =
-    CircuitVerifyingKey<<N as Environment>::PairingCurve, MarlinHidingMode>;
 
 pub(crate) fn parse_account<N: Network>(
     private_key: Option<String>,

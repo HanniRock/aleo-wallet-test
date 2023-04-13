@@ -6,8 +6,6 @@
  * This file is part of aleo-wallet-test.
  */
 use crate::utils::post_request;
-use crate::utils::{MarlinProvingKey, MarlinVerifyingKey};
-use crate::verifying_keys::VerifyingKeyModel;
 use crate::CurrentNetwork;
 use anyhow::{bail, ensure};
 use indexmap::IndexMap;
@@ -18,7 +16,7 @@ use snarkvm_console_account::address::Address;
 use snarkvm_console_account::PrivateKey;
 use snarkvm_console_network::Network;
 use snarkvm_console_network::environment::Console;
-use snarkvm_console_program::{Identifier, Locator, Plaintext, ProgramID, Record, Value};
+use snarkvm_console_program::{Identifier, Locator, Plaintext, ProgramID, Record, Request, Value};
 use snarkvm_synthesizer::{
     ConsensusMemory, ConsensusStore, Process, Program, ProvingKey, Query, Transaction,
     VerifyingKey, VM,
@@ -30,35 +28,6 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use wasm_bindgen_futures::JsFuture;
-use crate::proving_keys::ProvingKeyModel;
-
-pub const CREDITS_PROVING_KEYS_T: &[u8] = include_bytes!("../credits_proving_keys");
-pub const CREDITS_VERIFYING_KEYS_T: &[u8] = include_bytes!("../credits_verifying_keys");
-//
-// lazy_static! {
-//     pub static ref TRANSFER_KEYS: HashMap<String, (ProvingKey<CurrentNetwork>, VerifyingKey<CurrentNetwork>)> = setup_cache();
-// }
-
-fn setup_cache<N: Network>() -> HashMap<String, (ProvingKey<N>, VerifyingKey<N>)> {
-    let program = Program::<N>::credits().unwrap();
-    let mut proving_keys_cache = ProvingKeyModel::setup(&program);
-    let mut verifying_keys_cache = VerifyingKeyModel::setup(&program);
-    let mut cache = HashMap::new();
-    for function_name in program.functions().keys() {
-        cache.insert(
-            function_name.to_string(),
-            (
-                proving_keys_cache
-                    .remove(&function_name.to_string())
-                    .unwrap(),
-                verifying_keys_cache
-                    .remove(&function_name.to_string())
-                    .unwrap(),
-            ),
-        );
-    }
-    cache
-}
 
 pub(crate) async fn transfer_internal<N: Network>(
     private_key: String,
@@ -68,57 +37,28 @@ pub(crate) async fn transfer_internal<N: Network>(
     query_endpoint: String,
     broadcast: String,
 ) -> anyhow::Result<String> {
+    // Initialize an RNG.
+    let rng = &mut rand::thread_rng();
+
     let record = Record::<N, Plaintext<N>>::from_str(&record)?;
     let recipient = Address::<N>::from_str(&recipient)?;
 
-    // Specify the query
-    let query = Query::from(&query_endpoint);
+    let inputs = vec![
+        Value::Record(record.clone()),
+        Value::from_str(&format!("{}", recipient))?,
+        Value::from_str(&format!("{}u64", amount))?,
+    ];
 
+    let program = Program::<N>::credits()?;
+
+    // Initialize the 'credits.aleo' program.
+    let function_name = Identifier::<N>::from_str("transfer")?;
     // Retrieve the private key.
-    let private_key = PrivateKey::from_str(&private_key)?;
-    // Generate the transfer transaction.
-    let execution = {
-        // Initialize an RNG.
-        let rng = &mut rand::thread_rng();
+    let private_key = PrivateKey::<N>::from_str(&private_key)?;
+    let input_types = program.get_function(&function_name)?.input_types();
 
-        // Initialize the VM.
-        let store = ConsensusStore::<N, ConsensusMemory<N>>::open(None)?;
-        let mut cache = setup_cache::<N>();
-        let vm = VM::from_cache(store, &mut cache)?;
-
-        // Prepare the fees.
-        // let fee = match self.fee_record {
-        //     Some(record) => {
-        //         let record = Record::<N, Plaintext<N>>::from_str(&record)?;
-        //         let fee_amount = self.fee.unwrap_or(0);
-        //
-        //         Some((record, fee_amount))
-        //     }
-        //     None => None,
-        // };
-
-        // Prepare the inputs for a transfer.
-        let inputs = vec![
-            Value::Record(record.clone()),
-            Value::from_str(&format!("{}", recipient))?,
-            Value::from_str(&format!("{}u64", amount))?,
-        ];
-
-        // Create a new transaction.
-        Transaction::execute(
-            &vm,
-            &private_key,
-            ProgramID::from_str("credits.aleo")?,
-            Identifier::from_str("transfer")?,
-            inputs.iter(),
-            None,
-            Some(query),
-            rng,
-        )?
-    };
-    let locator = Locator::<N>::from_str("credits.aleo/transfer")?;
-    // Determine if the transaction should be broadcast, stored, or displayed to user.
-    handle_transaction(Some(broadcast), false, None, execution, locator.to_string()).await
+    let request = Request::<N>::sign(&private_key, *program.id(), function_name, &mut inputs.into_iter(), &input_types, rng)?;
+    Ok(request.to_string())
 }
 
 async fn handle_transaction<N: Network>(
