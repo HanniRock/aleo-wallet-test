@@ -28,18 +28,18 @@ pub(crate) struct ProvingKeyModel<N: Network> {
 
 impl<N: Network> ProvingKeyModel<N> {
     pub(crate) fn setup(program: &Program<N>) -> IndexMap<String, ProvingKey<N>> {
-        let credits_verifying_keys =
+        let mut credits_verifying_keys =
             Self::get_credits_proving_keys(CREDITS_PROVING_KEYS_T).unwrap();
         let mut cache = IndexMap::new();
         for function_name in program.functions().keys() {
             let pk = credits_verifying_keys
-                .get(&function_name.to_string())
-                .unwrap()
-                .clone();
+                .remove(&function_name.to_string())
+                .unwrap();
             let pk_s = ProvingKeyModel::<N> { proving_key: pk };
 
-            let middle = serde_json::to_string(&pk_s).unwrap();
+            let mut middle = serde_json::to_string(&pk_s).unwrap();
             let res = serde_json::from_str::<ProvingKey<N>>(&middle).unwrap();
+            let _ = std::mem::replace(&mut middle, String::new());
             cache.insert(function_name.to_string(), res);
         }
         cache

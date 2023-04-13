@@ -28,18 +28,18 @@ pub(crate) struct VerifyingKeyModel<N: Network> {
 
 impl<N: Network> VerifyingKeyModel<N> {
     pub(crate) fn setup(program: &Program<N>) -> IndexMap<String, VerifyingKey<N>> {
-        let credits_verifying_keys =
+        let mut credits_verifying_keys =
             Self::get_credits_verifying_keys(CREDITS_VERIFYING_KEYS_T).unwrap();
         let mut cache = IndexMap::new();
         for function_name in program.functions().keys() {
             let vk = credits_verifying_keys
-                .get(&function_name.to_string())
-                .unwrap()
-                .clone();
+                .remove(&function_name.to_string())
+                .unwrap();
             let vk_s = VerifyingKeyModel::<N> { verifying_key: vk };
 
-            let middle = serde_json::to_string(&vk_s).unwrap();
+            let mut middle = serde_json::to_string(&vk_s).unwrap();
             let res = serde_json::from_str::<VerifyingKey<N>>(&middle).unwrap();
+            let _ = std::mem::replace(&mut middle, String::new());
             cache.insert(function_name.to_string(), res);
         }
         cache

@@ -34,28 +34,26 @@ use crate::proving_keys::ProvingKeyModel;
 
 pub const CREDITS_PROVING_KEYS_T: &[u8] = include_bytes!("../credits_proving_keys");
 pub const CREDITS_VERIFYING_KEYS_T: &[u8] = include_bytes!("../credits_verifying_keys");
-
-lazy_static! {
-    pub static ref TRANSFER_KEYS: HashMap<String, (ProvingKey<CurrentNetwork>, VerifyingKey<CurrentNetwork>)> = setup_cache();
-}
+//
+// lazy_static! {
+//     pub static ref TRANSFER_KEYS: HashMap<String, (ProvingKey<CurrentNetwork>, VerifyingKey<CurrentNetwork>)> = setup_cache();
+// }
 
 fn setup_cache<N: Network>() -> HashMap<String, (ProvingKey<N>, VerifyingKey<N>)> {
     let program = Program::<N>::credits().unwrap();
-    let proving_keys_cache = ProvingKeyModel::setup(&program);
-    let verifying_keys_cache = VerifyingKeyModel::setup(&program);
+    let mut proving_keys_cache = ProvingKeyModel::setup(&program);
+    let mut verifying_keys_cache = VerifyingKeyModel::setup(&program);
     let mut cache = HashMap::new();
     for function_name in program.functions().keys() {
         cache.insert(
             function_name.to_string(),
             (
                 proving_keys_cache
-                    .get(&function_name.to_string())
-                    .unwrap()
-                    .clone(),
+                    .remove(&function_name.to_string())
+                    .unwrap(),
                 verifying_keys_cache
-                    .get(&function_name.to_string())
-                    .unwrap()
-                    .clone(),
+                    .remove(&function_name.to_string())
+                    .unwrap(),
             ),
         );
     }
