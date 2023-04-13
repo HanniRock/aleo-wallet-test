@@ -23,6 +23,7 @@ use crate::utils::{get_credits_verifying_keys, get_credits_proving_keys, MarlinP
 use std::sync::Arc;
 use indexmap::IndexMap;
 use parking_lot::RwLock;
+use crate::CurrentNetwork;
 use crate::vm::MyVm;
 
 pub const CREDITS_PROVING_KEYS_T: &[u8] = include_bytes!("../credits_proving_keys");
@@ -32,8 +33,8 @@ lazy_static! {
     pub static ref MY_CREDITS_PROVING_KEYS: IndexMap<String, Arc<MarlinProvingKey<Console>>> = {
         get_credits_proving_keys::<Console>(CREDITS_PROVING_KEYS_T).unwrap()
     };
-    pub static ref MY_CREDITS_VERIFYING_KEYS: IndexMap<String, Arc<MarlinVerifyingKey<Console>>> = {
-        get_credits_verifying_keys::<Console>(CREDITS_VERIFYING_KEYS_T).unwrap()
+    pub static ref MY_CREDITS_VERIFYING_KEYS: IndexMap<String, Arc<MarlinVerifyingKey<CurrentNetwork>>> = {
+        get_credits_verifying_keys::<CurrentNetwork>(CREDITS_VERIFYING_KEYS_T).unwrap()
     };
 }
 

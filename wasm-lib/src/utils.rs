@@ -112,12 +112,12 @@ pub(crate) fn get_credits_proving_keys<E: Environment>(data: &[u8]) -> anyhow::R
     Ok(credits_proving_keys)
 }
 
-pub(crate) fn get_credits_verifying_keys<E: Environment>(data: &[u8]) -> anyhow::Result<IndexMap<String, Arc<MarlinVerifyingKey<E>>>> {
+pub(crate) fn get_credits_verifying_keys<N: Network>(data: &[u8]) -> anyhow::Result<IndexMap<String, Arc<MarlinVerifyingKey<N>>>> {
     let credits_verifying_keys_raw: IndexMap<String, Vec<u8>> = bincode::deserialize(data).map_err(|err| anyhow::Error::msg(format!("failed to deserialize data: {}", err)))?;
     let mut credits_verifying_keys = IndexMap::new();
     for (k, v) in credits_verifying_keys_raw.iter() {
-        let le: Arc<MarlinVerifyingKey<E>> =
-            Arc::new(MarlinVerifyingKey::<E>::read_le(v.as_slice()).map_err(|err|anyhow::Error::msg(format!("failed to read_le data: {}", err)))?);
+        let le: Arc<MarlinVerifyingKey<N>> =
+            Arc::new(MarlinVerifyingKey::<N>::read_le(v.as_slice()).map_err(|err|anyhow::Error::msg(format!("failed to read_le data: {}", err)))?);
         credits_verifying_keys.insert(k.clone(), le);
     }
     Ok(credits_verifying_keys)
@@ -220,6 +220,6 @@ fn test_credits_verifying_keys() {
 
     assert_eq!(credits_verifying_keys_2, credits_verifying_keys_1);
 
-    let credits_verifying_keys_3 = get_credits_verifying_keys::<Console>(&content).unwrap();
+    let credits_verifying_keys_3 = get_credits_verifying_keys::<CurrentNetwork>(&content).unwrap();
     assert_eq!(new_credits_verifying_keys, credits_verifying_keys_3)
 }
