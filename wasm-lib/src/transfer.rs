@@ -17,10 +17,7 @@ use snarkvm_console_account::PrivateKey;
 use snarkvm_console_network::Network;
 use snarkvm_console_network::environment::Console;
 use snarkvm_console_program::{Identifier, Locator, Plaintext, ProgramID, Record, Request, Value};
-use snarkvm_synthesizer::{
-    ConsensusMemory, ConsensusStore, Process, Program, ProvingKey, Query, Transaction,
-    VerifyingKey, VM,
-};
+use snarkvm_synthesizer::{Authorization, CallStack, ConsensusMemory, ConsensusStore, Process, Program, ProvingKey, Query, Transaction, VerifyingKey, VM};
 use snarkvm_utilities::ToBytes;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -29,7 +26,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use wasm_bindgen_futures::JsFuture;
 
-pub(crate) async fn transfer_internal<N: Network>(
+pub(crate) fn transfer_internal<N: Network>(
     private_key: String,
     record: String,
     amount: u64,
@@ -58,6 +55,7 @@ pub(crate) async fn transfer_internal<N: Network>(
     let input_types = program.get_function(&function_name)?.input_types();
 
     let request = Request::<N>::sign(&private_key, *program.id(), function_name, &mut inputs.into_iter(), &input_types, rng)?;
+
     Ok(request.to_string())
 }
 
@@ -157,7 +155,15 @@ async fn handle_transaction<N: Network>(
 // wasm-pack test --chrome
 // #[cfg(target_arch = "wasm32")]
 mod tests {
+    use std::str::FromStr;
+    use circuit::AleoV0;
+    use rand::Rng;
+    use snarkvm_console_account::{Address, PrivateKey};
+    use snarkvm_console_network::prelude::CryptoRng;
+    use snarkvm_console_program::{Identifier, Plaintext, Record, Request, Value};
+    use snarkvm_synthesizer::{Authorization, CallStack, ConsensusMemory, ConsensusStore, Program, VM};
     use wasm_bindgen_test::{console_log, wasm_bindgen_test, wasm_bindgen_test_configure};
+    use crate::CurrentNetwork;
     wasm_bindgen_test_configure!(run_in_browser);
 
     const TRANSFER_CONF_DATA: &[u8] = include_bytes!("transfer_conf");
@@ -184,7 +190,6 @@ mod tests {
             conf[1].clone(),
             conf[2].clone(),
         )
-            .await
             .unwrap();
         console_log!("{}", msg)
     }
@@ -198,5 +203,54 @@ mod tests {
             .map(|c| c.to_string())
             .collect::<Vec<String>>();
         println!("{:?}", split);
+    }
+
+
+    #[test]
+    fn test_transfer() {
+        type CurrentAleo = AleoV0;
+        let file_contents = std::str::from_utf8(TRANSFER_CONF_DATA).unwrap();
+        let conf = file_contents
+            .split('\n')
+            .map(|c| c.to_string())
+            .collect::<Vec<String>>();
+
+        // Initialize an RNG.
+        let rng = &mut rand::thread_rng();
+
+        let record = Record::<CurrentNetwork, Plaintext<CurrentNetwork>>::from_str(&conf[3].clone()).unwrap();
+        let recipient = Address::<CurrentNetwork>::from_str(&conf[5].clone()).unwrap();
+
+        let inputs = vec![
+            Value::Record(record.clone()),
+            Value::from_str(&format!("{}", recipient)).unwrap(),
+            Value::from_str(&format!("{}u64", u64::from_str(&conf[4]).unwrap())).unwrap(),
+        ];
+
+        let program = Program::<CurrentNetwork>::credits().unwrap();
+
+        // Initialize the 'credits.aleo' program.
+        let function_name = Identifier::<CurrentNetwork>::from_str("transfer").unwrap();
+        // Retrieve the private key.
+        let private_key = PrivateKey::<CurrentNetwork>::from_str(&conf[0].clone()).unwrap();
+        let input_types = program.get_function(&function_name).unwrap().input_types();
+
+        let request = Request::<CurrentNetwork>::sign(&private_key, *program.id(), function_name, &mut inputs.into_iter(), &input_types, rng).unwrap();
+
+        // Initialize the authorization.
+        let authorization = Authorization::new(&[request.clone()]);
+        // Construct the call stack.
+        let private_key_new = PrivateKey::<CurrentNetwork>::from_str("APrivateKey1zkp45SGETknN6H1ZYwAFgkyj9MJ1nBdS2zdz7vYzLewnWKX").unwrap();
+        let call_stack = CallStack::Authorize(vec![request], private_key_new, authorization.clone());
+
+        // Initialize the consensus store.
+        let store = ConsensusStore::<CurrentNetwork, ConsensusMemory<CurrentNetwork>>::open(None).unwrap();
+        // Initialize a new VM.
+        let vm = VM::from(store).unwrap();
+        let binding = vm.process();
+        let binding = binding.write();
+        let stack = binding.get_stack(program.id()).unwrap();
+        let result = stack.execute_function::<CurrentAleo, _>(call_stack, rng).unwrap();
+        println!("{:?}", result);
     }
 }

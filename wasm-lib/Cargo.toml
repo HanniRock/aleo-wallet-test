@@ -53,6 +53,9 @@ once_cell = "1.17.1"
 version = "0.8"
 default-features = false
 
+[dependencies.circuit]
+package = "snarkvm-circuit"
+version = "0.9.16"
 
 [dependencies.indexmap]
 version = "1.9"

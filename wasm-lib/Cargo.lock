@@ -2420,6 +2420,7 @@ dependencies = [
  "serde",
  "serde_json",
  "snarkvm-algorithms",
+ "snarkvm-circuit",
  "snarkvm-console-account",
  "snarkvm-console-network",
  "snarkvm-console-network-environment",

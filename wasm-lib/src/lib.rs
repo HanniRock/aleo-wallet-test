@@ -69,7 +69,6 @@ pub async fn transfer(
         query_endpoint,
         broadcast,
     )
-    .await
     {
         Ok(transaction) => transaction,
         Err(e) => format!("error: {}", e),
