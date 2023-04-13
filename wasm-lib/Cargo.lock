@@ -2413,6 +2413,7 @@ dependencies = [
  "indexmap",
  "js-sys",
  "lazy_static",
+ "parking_lot",
  "rand",
  "serde",
  "serde_json",

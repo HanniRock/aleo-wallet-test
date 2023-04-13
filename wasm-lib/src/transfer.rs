@@ -13,7 +13,7 @@ use snarkvm_console_account::PrivateKey;
 use snarkvm_console_network::Network;
 use snarkvm_console_network_environment::Console;
 use snarkvm_console_program::{Identifier, Locator, Plaintext, ProgramID, Record, Value};
-use snarkvm_synthesizer::{ConsensusMemory, ConsensusStore, Query, Transaction, VM};
+use snarkvm_synthesizer::{ConsensusMemory, ConsensusStorage, ConsensusStore, Process, Query, Transaction, VM};
 use snarkvm_utilities::ToBytes;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -22,6 +22,8 @@ use wasm_bindgen_futures::JsFuture;
 use crate::utils::{get_credits_verifying_keys, get_credits_proving_keys, MarlinProvingKey, MarlinVerifyingKey};
 use std::sync::Arc;
 use indexmap::IndexMap;
+use parking_lot::RwLock;
+use crate::vm::MyVm;
 
 pub const CREDITS_PROVING_KEYS_T: &[u8] = include_bytes!("../credits_proving_keys");
 pub const CREDITS_VERIFYING_KEYS_T: &[u8] = include_bytes!("../credits_verifying_keys");
