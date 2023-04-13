@@ -13,7 +13,7 @@ use serde::{Serialize, Serializer};
 use snarkvm_algorithms::snark::marlin;
 use snarkvm_console_network::prelude::{bech32, IoResult, ToBase32};
 use snarkvm_console_network::Network;
-use snarkvm_console_network_environment::{Console, Environment};
+use snarkvm_console_network::environment::{Console, Environment};
 use snarkvm_synthesizer::{Program, VerifyingKey};
 use snarkvm_utilities::{FromBytes, ToBytes, ToBytesSerializer};
 use std::collections::HashMap;
@@ -129,7 +129,7 @@ fn test_credits_verifying_keys() {
     use crate::CurrentNetwork;
     use indexmap::IndexMap;
     use snarkvm_console_network::CREDITS_VERIFYING_KEYS;
-    use snarkvm_console_network_environment::Console;
+    use snarkvm_console_network::environment::Console;
     use snarkvm_synthesizer::Program;
     use snarkvm_utilities::ToBytes;
     use std::fs::File;

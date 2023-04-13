@@ -8,7 +8,6 @@
 use crate::utils::post_request;
 use crate::utils::{MarlinProvingKey, MarlinVerifyingKey};
 use crate::verifying_keys::VerifyingKeyModel;
-use crate::vm::MyVm;
 use crate::CurrentNetwork;
 use anyhow::{bail, ensure};
 use indexmap::IndexMap;
@@ -18,7 +17,7 @@ use serde_json::from_str;
 use snarkvm_console_account::address::Address;
 use snarkvm_console_account::PrivateKey;
 use snarkvm_console_network::Network;
-use snarkvm_console_network_environment::Console;
+use snarkvm_console_network::environment::Console;
 use snarkvm_console_program::{Identifier, Locator, Plaintext, ProgramID, Record, Value};
 use snarkvm_synthesizer::{
     ConsensusMemory, ConsensusStore, Process, Program, ProvingKey, Query, Transaction,
@@ -37,8 +36,7 @@ pub const CREDITS_PROVING_KEYS_T: &[u8] = include_bytes!("../credits_proving_key
 pub const CREDITS_VERIFYING_KEYS_T: &[u8] = include_bytes!("../credits_verifying_keys");
 
 lazy_static! {
-    pub static ref TRANSFER_KEYS: RwLock<HashMap<String, (ProvingKey<CurrentNetwork>, VerifyingKey<CurrentNetwork>)>> =
-        RwLock::new(setup_cache());
+    pub static ref TRANSFER_KEYS: HashMap<String, (ProvingKey<CurrentNetwork>, VerifyingKey<CurrentNetwork>)> = setup_cache();
 }
 
 fn setup_cache<N: Network>() -> HashMap<String, (ProvingKey<N>, VerifyingKey<N>)> {
@@ -87,7 +85,8 @@ pub(crate) async fn transfer_internal<N: Network>(
 
         // Initialize the VM.
         let store = ConsensusStore::<N, ConsensusMemory<N>>::open(None)?;
-        let vm = VM::from(store)?;
+        let mut cache = setup_cache::<N>();
+        let vm = VM::from_cache(store, &mut cache)?;
 
         // Prepare the fees.
         // let fee = match self.fee_record {
@@ -247,8 +246,8 @@ mod tests {
             conf[1].clone(),
             conf[2].clone(),
         )
-        .await
-        .unwrap();
+            .await
+            .unwrap();
         console_log!("{}", msg)
     }
 

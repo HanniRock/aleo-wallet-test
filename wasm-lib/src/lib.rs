@@ -3,7 +3,6 @@ mod records;
 mod transfer;
 mod utils;
 mod verifying_keys;
-mod vm;
 
 use crate::records::{request_records_internal, RecordScanner};
 use crate::transfer::transfer_internal;

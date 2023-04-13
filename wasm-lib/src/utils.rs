@@ -1,7 +1,7 @@
 use indexmap::IndexMap;
 use snarkvm_algorithms::snark::marlin::{CircuitProvingKey, CircuitVerifyingKey, MarlinHidingMode};
 use snarkvm_console_account::{PrivateKey, ViewKey};
-use snarkvm_console_network_environment::Environment;
+use snarkvm_console_network::environment::Environment;
 use snarkvm_console_program::Network;
 use snarkvm_utilities::FromBytes;
 use std::str::FromStr;

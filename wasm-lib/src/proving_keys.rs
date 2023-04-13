@@ -8,7 +8,7 @@
 use snarkvm_algorithms::snark::marlin;
 use snarkvm_console_network::prelude::{bech32, IoResult, ToBase32};
 use snarkvm_console_network::Network;
-use snarkvm_console_network_environment::Environment;
+use snarkvm_console_network::environment::Environment;
 use snarkvm_synthesizer::{Program, ProvingKey};
 use snarkvm_utilities::{FromBytes, ToBytes, ToBytesSerializer};
 use std::collections::HashMap;
@@ -63,7 +63,7 @@ impl<N: Network> ProvingKeyModel<N> {
 }
 
 impl<N: Network> Serialize for ProvingKeyModel<N> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> anyhow::Result<S::Ok, S::Error> {
         match serializer.is_human_readable() {
             true => serializer.collect_str(self),
             false => ToBytesSerializer::serialize_with_size_encoding(self, serializer),
@@ -127,7 +127,7 @@ fn test_credits_proving_keys() {
     use crate::CurrentNetwork;
     use indexmap::IndexMap;
     use snarkvm_console_network::CREDITS_PROVING_KEYS;
-    use snarkvm_console_network_environment::Console;
+    use snarkvm_console_network::environment::Console;
     use snarkvm_synthesizer::Program;
     use snarkvm_utilities::ToBytes;
     use std::fs::File;
