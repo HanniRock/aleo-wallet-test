@@ -6,36 +6,62 @@
  * This file is part of aleo-wallet-test.
  */
 use crate::utils::post_request;
+use crate::utils::{MarlinProvingKey, MarlinVerifyingKey};
+use crate::verifying_keys::VerifyingKeyModel;
+use crate::vm::MyVm;
+use crate::CurrentNetwork;
 use anyhow::{bail, ensure};
+use indexmap::IndexMap;
+use lazy_static::lazy_static;
+use parking_lot::RwLock;
 use serde_json::from_str;
 use snarkvm_console_account::address::Address;
 use snarkvm_console_account::PrivateKey;
 use snarkvm_console_network::Network;
 use snarkvm_console_network_environment::Console;
 use snarkvm_console_program::{Identifier, Locator, Plaintext, ProgramID, Record, Value};
-use snarkvm_synthesizer::{ConsensusMemory, ConsensusStore, Process, Query, Transaction, VM};
+use snarkvm_synthesizer::{
+    ConsensusMemory, ConsensusStore, Process, Program, ProvingKey, Query, Transaction,
+    VerifyingKey, VM,
+};
 use snarkvm_utilities::ToBytes;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
-use lazy_static::lazy_static;
-use wasm_bindgen_futures::JsFuture;
-use crate::utils::{get_credits_verifying_keys, get_credits_proving_keys, MarlinProvingKey, MarlinVerifyingKey};
 use std::sync::Arc;
-use indexmap::IndexMap;
-use parking_lot::RwLock;
-use crate::CurrentNetwork;
-use crate::vm::MyVm;
+use wasm_bindgen_futures::JsFuture;
+use crate::proving_keys::ProvingKeyModel;
 
 pub const CREDITS_PROVING_KEYS_T: &[u8] = include_bytes!("../credits_proving_keys");
 pub const CREDITS_VERIFYING_KEYS_T: &[u8] = include_bytes!("../credits_verifying_keys");
 
 lazy_static! {
-    pub static ref MY_CREDITS_PROVING_KEYS: IndexMap<String, Arc<MarlinProvingKey<Console>>> = {
-        get_credits_proving_keys::<Console>(CREDITS_PROVING_KEYS_T).unwrap()
-    };
-    pub static ref MY_CREDITS_VERIFYING_KEYS: IndexMap<String, Arc<MarlinVerifyingKey<CurrentNetwork>>> = {
-        get_credits_verifying_keys::<CurrentNetwork>(CREDITS_VERIFYING_KEYS_T).unwrap()
-    };
+    pub static ref TRANSFER_KEYS: RwLock<HashMap<String, (ProvingKey<CurrentNetwork>, VerifyingKey<CurrentNetwork>)>> =
+        RwLock::new(setup_cache());
+}
+
+fn setup_cache<N: Network>() -> HashMap<String, (ProvingKey<N>, VerifyingKey<N>)> {
+    let program = Program::<N>::credits().unwrap();
+    let proving_keys_cache = ProvingKeyModel::setup(&program);
+    let verifying_keys_cache = VerifyingKeyModel::setup(&program);
+    let mut cache = HashMap::new();
+    for function_name in program.functions().keys() {
+        cache.insert(
+            function_name.to_string(),
+            (
+                proving_keys_cache
+                    .get(&function_name.to_string())
+                    .unwrap()
+                    .clone(),
+                verifying_keys_cache
+                    .get(&function_name.to_string())
+                    .unwrap()
+                    .clone(),
+            ),
+        );
+    }
+    cache
 }
 
 pub(crate) async fn transfer_internal<N: Network>(
@@ -221,8 +247,8 @@ mod tests {
             conf[1].clone(),
             conf[2].clone(),
         )
-            .await
-            .unwrap();
+        .await
+        .unwrap();
         console_log!("{}", msg)
     }
 

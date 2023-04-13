@@ -5,13 +5,14 @@
  *
  * This file is part of aleo-wallet-test.
  */
+
 use std::fs::File;
 use std::io::Write;
-use std::fs;
 use indexmap::IndexMap;
 use snarkvm_console_network::prelude::ToBytes;
 use snarkvm_console_network::{Testnet3, CREDITS_PROVING_KEYS, CREDITS_VERIFYING_KEYS};
 use snarkvm_synthesizer::Program;
+use std::fs;
 
 const CREDITS_PROVING_KEYS_FILE_PATH: &str = "credits_proving_keys";
 const CREDITS_VERIFYING_KEYS_FILE_PATH: &str = "credits_verifying_keys";
@@ -21,7 +22,10 @@ type CurrentNetwork = Testnet3;
 fn main() {
     if let Ok(file) = fs::metadata(CREDITS_PROVING_KEYS_FILE_PATH) {
         if !file.is_file() {
-            panic!("{} was existed, but not a file", CREDITS_PROVING_KEYS_FILE_PATH)
+            panic!(
+                "{} was existed, but not a file",
+                CREDITS_PROVING_KEYS_FILE_PATH
+            )
         }
     } else {
         write_credits_proving_keys_into_file();
@@ -29,9 +33,12 @@ fn main() {
 
     if let Ok(file) = fs::metadata(CREDITS_VERIFYING_KEYS_FILE_PATH) {
         if !file.is_file() {
-            panic!("{} was existed, but not a file", CREDITS_VERIFYING_KEYS_FILE_PATH)
+            panic!(
+                "{} was existed, but not a file",
+                CREDITS_VERIFYING_KEYS_FILE_PATH
+            )
         }
-    }else {
+    } else {
         write_credits_verifying_keys_into_file();
     }
 }
@@ -65,5 +72,3 @@ fn write_credits_verifying_keys_into_file() {
     let mut file = File::create(CREDITS_VERIFYING_KEYS_FILE_PATH).unwrap();
     file.write_all(&serialized_data).unwrap();
 }
-
-

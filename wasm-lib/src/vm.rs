@@ -1,6 +1,3 @@
-use std::fmt;
-use std::fmt::Formatter;
-use std::io::Write;
 /**
  * @Author IronC <apehuang123@gmail.com>
  * @create 2023/4/13 11:03
@@ -8,18 +5,20 @@ use std::io::Write;
  *
  * This file is part of aleo-wallet-test.
  */
-
 use std::sync::Arc;
 use anyhow::bail;
 use parking_lot::RwLock;
-use snarkvm_console_network::Network;
 use snarkvm_console_network::prelude::{bech32, IoResult, ToBase32};
+use snarkvm_console_network::Network;
 use snarkvm_console_network_environment::Environment;
 use snarkvm_console_program::ProgramID;
-use snarkvm_synthesizer::{Block, BlockStore, ConsensusStorage, ConsensusStore, Process, Program, ProgramStore, ProvingKey, TransactionStore, TransitionStore, VerifyingKey};
-
-
-use crate::transfer::{MY_CREDITS_PROVING_KEYS, MY_CREDITS_VERIFYING_KEYS};
+use snarkvm_synthesizer::{
+    Block, BlockStore, ConsensusStorage, ConsensusStore, Process, Program, ProgramStore,
+    ProvingKey, TransactionStore, TransitionStore, VerifyingKey, VM,
+};
+use std::fmt;
+use std::fmt::Formatter;
+use std::io::Write;
 
 #[derive(Clone)]
 pub struct MyVm<N: Network, C: ConsensusStorage<N>> {
@@ -34,34 +33,34 @@ impl<N: Network, C: ConsensusStorage<N>> MyVm<N, C> {
     // #[inline]
     // pub fn from(store: ConsensusStore<N, C>) -> anyhow::Result<Self> {
 
-        // let program = Program::<N>::credits()?;
-        //
-        //
-        // let mut cache = Default::default();
-        //
-        // for k in program.functions().keys() {
-        //     let pk = MY_CREDITS_PROVING_KEYS.get(&k.to_string()).unwrap().clone();
-        //     let vk = MY_CREDITS_VERIFYING_KEYS.get(&k.to_string()).unwrap().clone();
-        //     ProvingKey::
-        // }
-        //
-        // // Initialize a new process.
-        // let mut process = Process::load_with_cache(cache)?;
-        //
-        // // Retrieve the transaction store.
-        // let transaction_store = store.transaction_store();
-        // // Load the deployments from the store.
-        // for transaction_id in transaction_store.deployment_transaction_ids() {
-        //     // Retrieve the deployment.
-        //     match transaction_store.get_deployment(&transaction_id)? {
-        //         // Load the deployment.
-        //         Some(deployment) => process.load_deployment(&deployment)?,
-        //         None => bail!("Deployment transaction '{transaction_id}' is not found in storage."),
-        //     };
-        // }
-        //
-        // // Return the new VM.
-        // Ok(Self { process: Arc::new(RwLock::new(process)), store })
+    // let program = Program::<N>::credits()?;
+    //
+    //
+    // let mut cache = Default::default();
+    //
+    // for k in program.functions().keys() {
+    //     let pk = MY_CREDITS_PROVING_KEYS.get(&k.to_string()).unwrap().clone();
+    //     let vk = MY_CREDITS_VERIFYING_KEYS.get(&k.to_string()).unwrap().clone();
+    //     ProvingKey::
+    // }
+    //
+    // // Initialize a new process.
+    // let mut process = Process::load_with_cache(cache)?;
+    //
+    // // Retrieve the transaction store.
+    // let transaction_store = store.transaction_store();
+    // // Load the deployments from the store.
+    // for transaction_id in transaction_store.deployment_transaction_ids() {
+    //     // Retrieve the deployment.
+    //     match transaction_store.get_deployment(&transaction_id)? {
+    //         // Load the deployment.
+    //         Some(deployment) => process.load_deployment(&deployment)?,
+    //         None => bail!("Deployment transaction '{transaction_id}' is not found in storage."),
+    //     };
+    // }
+    //
+    // // Return the new VM.
+    // Ok(Self { process: Arc::new(RwLock::new(process)), store })
     // }
 
     // /// Returns `true` if a program with the given program ID exists.
