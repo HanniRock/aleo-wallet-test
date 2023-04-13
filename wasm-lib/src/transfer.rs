@@ -13,7 +13,7 @@ use snarkvm_console_account::PrivateKey;
 use snarkvm_console_network::Network;
 use snarkvm_console_network_environment::Console;
 use snarkvm_console_program::{Identifier, Locator, Plaintext, ProgramID, Record, Value};
-use snarkvm_synthesizer::{ConsensusMemory, ConsensusStorage, ConsensusStore, Process, Query, Transaction, VM};
+use snarkvm_synthesizer::{ConsensusMemory, ConsensusStore, Process, Query, Transaction, VM};
 use snarkvm_utilities::ToBytes;
 use std::path::PathBuf;
 use std::str::FromStr;
