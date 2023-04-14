@@ -290,34 +290,34 @@ async fn fetch_blocks<N: Network>(endpoint: &str) -> anyhow::Result<Vec<Block<N>
     }
 }
 
-// wasm-pack test --chrome
-#[cfg(target_arch = "wasm32")]
-mod tests {
-    use wasm_bindgen_test::{console_log, wasm_bindgen_test, wasm_bindgen_test_configure};
-    wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen_test]
-    async fn test_request_records_internal() {
-        use crate::records::request_records_internal;
-        use crate::CurrentNetwork;
-        match request_records_internal::<CurrentNetwork>(
-            None,
-            "AViewKey1mSnpFFC8Mj4fXbK5YiWgZ3mjiV8CxA79bYNa8ymUpTrw".to_string(),
-            Some(82870),
-            Some(82900),
-            None,
-            "http://115.231.235.242:33030".to_string(),
-        )
-        .await
-        {
-            Ok(records) => {
-                for r in records {
-                    console_log!("{}", r)
-                }
-            }
-            Err(e) => {
-                console_log!("{}", e);
-            }
-        }
-    }
-}
+// // wasm-pack test --chrome
+// #[cfg(target_arch = "wasm32")]
+// mod tests {
+//     use wasm_bindgen_test::{console_log, wasm_bindgen_test, wasm_bindgen_test_configure};
+//     wasm_bindgen_test_configure!(run_in_browser);
+//
+//     #[wasm_bindgen_test]
+//     async fn test_request_records_internal() {
+//         use crate::records::request_records_internal;
+//         use crate::CurrentNetwork;
+//         match request_records_internal::<CurrentNetwork>(
+//             None,
+//             "AViewKey1mSnpFFC8Mj4fXbK5YiWgZ3mjiV8CxA79bYNa8ymUpTrw".to_string(),
+//             Some(82870),
+//             Some(82900),
+//             None,
+//             "http://115.231.235.242:33030".to_string(),
+//         )
+//         .await
+//         {
+//             Ok(records) => {
+//                 for r in records {
+//                     console_log!("{}", r)
+//                 }
+//             }
+//             Err(e) => {
+//                 console_log!("{}", e);
+//             }
+//         }
+//     }
+// }

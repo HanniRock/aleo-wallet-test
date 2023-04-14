@@ -34,17 +34,18 @@ use crate::proving_keys::ProvingKeyModel;
 
 pub const CREDITS_PROVING_KEYS_T: &[u8] = include_bytes!("../credits_proving_keys");
 pub const CREDITS_VERIFYING_KEYS_T: &[u8] = include_bytes!("../credits_verifying_keys");
-//
-// lazy_static! {
-//     pub static ref TRANSFER_KEYS: HashMap<String, (ProvingKey<CurrentNetwork>, VerifyingKey<CurrentNetwork>)> = setup_cache();
-// }
+
+lazy_static!(
+    pub(crate) static ref REQUIRE_KEYS: [Identifier<CurrentNetwork>; 2] = [Identifier::<CurrentNetwork>::from_str("transfer").unwrap(), Identifier::<CurrentNetwork>::from_str("fee").unwrap()];
+);
+
 
 fn setup_cache<N: Network>() -> HashMap<String, (ProvingKey<N>, VerifyingKey<N>)> {
-    let program = Program::<N>::credits().unwrap();
-    let mut proving_keys_cache = ProvingKeyModel::setup(&program);
-    let mut verifying_keys_cache = VerifyingKeyModel::setup(&program);
+    // let program = Program::<N>::credits().unwrap();
+    let mut proving_keys_cache = ProvingKeyModel::setup();
+    let mut verifying_keys_cache = VerifyingKeyModel::setup();
     let mut cache = HashMap::new();
-    for function_name in program.functions().keys() {
+    for function_name in REQUIRE_KEYS.into_iter() {
         cache.insert(
             function_name.to_string(),
             (
@@ -84,7 +85,7 @@ pub(crate) async fn transfer_internal<N: Network>(
         // Initialize the VM.
         let store = ConsensusStore::<N, ConsensusMemory<N>>::open(None)?;
         let mut cache = setup_cache::<N>();
-        let vm = VM::from_cache(store, &mut cache)?;
+        let vm = VM::from_cache(store, &mut cache, &[Identifier::<N>::from_str("transfer").unwrap(), Identifier::<N>::from_str("fee").unwrap()].to_vec())?;
 
         // Prepare the fees.
         // let fee = match self.fee_record {
@@ -215,9 +216,13 @@ async fn handle_transaction<N: Network>(
 }
 
 // wasm-pack test --chrome
-// #[cfg(target_arch = "wasm32")]
-mod tests {
+#[cfg(test)]
+mod transfer_tests {
+    use std::str::FromStr;
+    use snarkvm_console_program::Identifier;
+    use snarkvm_synthesizer::Program;
     use wasm_bindgen_test::{console_log, wasm_bindgen_test, wasm_bindgen_test_configure};
+    use crate::CurrentNetwork;
     wasm_bindgen_test_configure!(run_in_browser);
 
     const TRANSFER_CONF_DATA: &[u8] = include_bytes!("transfer_conf");
@@ -258,5 +263,11 @@ mod tests {
             .map(|c| c.to_string())
             .collect::<Vec<String>>();
         println!("{:?}", split);
+    }
+
+    #[test]
+    fn test_program_function_name() {
+        let function_name = Identifier::<CurrentNetwork>::from_str("transfer").unwrap();
+        println!("{}", function_name)
     }
 }

@@ -13,9 +13,17 @@ use snarkvm_console_network::prelude::ToBytes;
 use snarkvm_console_network::{Testnet3, CREDITS_PROVING_KEYS, CREDITS_VERIFYING_KEYS};
 use snarkvm_synthesizer::Program;
 use std::fs;
+use std::str::FromStr;
+use snarkvm_console_program::Identifier;
+use lazy_static::lazy_static;
 
 const CREDITS_PROVING_KEYS_FILE_PATH: &str = "credits_proving_keys";
 const CREDITS_VERIFYING_KEYS_FILE_PATH: &str = "credits_verifying_keys";
+
+
+lazy_static!(
+    static ref REQUIRE_KEYS: [Identifier<CurrentNetwork>; 2] = [Identifier::<CurrentNetwork>::from_str("transfer").unwrap(), Identifier::<CurrentNetwork>::from_str("fee").unwrap()];
+);
 
 type CurrentNetwork = Testnet3;
 
@@ -46,8 +54,7 @@ fn main() {
 fn write_credits_proving_keys_into_file() {
     let mut new_credits_proving_keys = IndexMap::new();
 
-    let program = Program::<CurrentNetwork>::credits().unwrap();
-    for k in program.functions().keys() {
+    for k in REQUIRE_KEYS.into_iter() {
         if let Some(v) = CREDITS_PROVING_KEYS.get(&k.to_string()) {
             new_credits_proving_keys.insert(k.to_string(), v.clone().to_bytes_le().unwrap());
         }
@@ -61,8 +68,7 @@ fn write_credits_proving_keys_into_file() {
 fn write_credits_verifying_keys_into_file() {
     let mut new_credits_verifying_keys = IndexMap::new();
 
-    let program = Program::<CurrentNetwork>::credits().unwrap();
-    for k in program.functions().keys() {
+    for k in REQUIRE_KEYS.into_iter() {
         if let Some(v) = CREDITS_VERIFYING_KEYS.get(&k.to_string()) {
             new_credits_verifying_keys.insert(k.to_string(), v.clone().to_bytes_le().unwrap());
         }

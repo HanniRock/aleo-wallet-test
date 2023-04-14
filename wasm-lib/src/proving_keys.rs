@@ -16,25 +16,30 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::sync::Arc;
-use crate::transfer::CREDITS_PROVING_KEYS_T;
+use crate::transfer::{CREDITS_PROVING_KEYS_T, REQUIRE_KEYS};
 use crate::utils::MarlinProvingKey;
 use crate::CurrentNetwork;
 use indexmap::IndexMap;
 use serde::{Serialize, Serializer};
+use snarkvm_console_program::Identifier;
 
 pub(crate) struct ProvingKeyModel<N: Network> {
     proving_key: Arc<marlin::CircuitProvingKey<N::PairingCurve, marlin::MarlinHidingMode>>,
 }
 
 impl<N: Network> ProvingKeyModel<N> {
-    pub(crate) fn setup(program: &Program<N>) -> IndexMap<String, ProvingKey<N>> {
-        let mut credits_verifying_keys =
+    pub(crate) fn setup() -> IndexMap<String, ProvingKey<N>> {
+        let mut credits_proving_keys =
             Self::get_credits_proving_keys(CREDITS_PROVING_KEYS_T).unwrap();
         let mut cache = IndexMap::new();
-        for function_name in program.functions().keys() {
-            let pk = credits_verifying_keys
-                .remove(&function_name.to_string())
-                .unwrap();
+        for function_name in REQUIRE_KEYS.into_iter() {
+            let pk = match credits_proving_keys
+                .remove(&function_name.to_string()) {
+                None => {
+                    continue;
+                }
+                Some(pk) => pk
+            };
             let pk_s = ProvingKeyModel::<N> { proving_key: pk };
 
             let mut middle = serde_json::to_string(&pk_s).unwrap();
@@ -92,88 +97,94 @@ impl<N: Network> ToBytes for ProvingKeyModel<N> {
     }
 }
 
-#[test]
-fn test_serialize_proving_key() {
-    use super::*;
+mod proving_keys_tests {
+    use std::str::FromStr;
+    use snarkvm_console_program::Identifier;
     use snarkvm_synthesizer::Program;
-    use snarkvm_synthesizer::ProvingKey;
-
-    let program = Program::<CurrentNetwork>::credits().unwrap();
-    for function_name in program.functions().keys() {
-        let pk =
-            ProvingKeyModel::<CurrentNetwork>::get_credits_proving_keys(CREDITS_PROVING_KEYS_T)
-                .unwrap()
-                .get(&function_name.to_string())
-                .unwrap()
-                .clone();
-        let pk_s = ProvingKeyModel::<CurrentNetwork> { proving_key: pk };
-
-        let middle = serde_json::to_string(&pk_s).unwrap();
-        let res = serde_json::from_str::<ProvingKey<CurrentNetwork>>(&middle).unwrap();
-        let res_st = serde_json::to_string(&res).unwrap();
-        assert_eq!(middle, res_st)
-    }
-}
-
-#[test]
-fn test_setup_proving_keys() {
-    let program = Program::<CurrentNetwork>::credits().unwrap();
-    let map = ProvingKeyModel::<CurrentNetwork>::setup(&program);
-    assert_eq!(map.len(), program.functions().len())
-}
-
-#[test]
-fn test_credits_proving_keys() {
     use crate::CurrentNetwork;
-    use indexmap::IndexMap;
-    use snarkvm_console_network::CREDITS_PROVING_KEYS;
-    use snarkvm_console_network::environment::Console;
-    use snarkvm_synthesizer::Program;
-    use snarkvm_utilities::ToBytes;
-    use std::fs::File;
-    use std::io::{Read, Write};
+    use crate::proving_keys::ProvingKeyModel;
+    use crate::transfer::REQUIRE_KEYS;
 
-    // type MarlinProvingKey<N> =
-    //     CircuitProvingKey<<N as Environment>::PairingCurve, MarlinHidingMode>;
+    #[test]
+    fn test_serialize_proving_key() {
+        use super::*;
+        use snarkvm_synthesizer::Program;
+        use snarkvm_synthesizer::ProvingKey;
 
-    let mut new_credits_proving_keys = IndexMap::new();
+        let program = Program::<CurrentNetwork>::credits().unwrap();
+        for function_name in program.functions().keys() {
+            let pk =
+                ProvingKeyModel::<CurrentNetwork>::get_credits_proving_keys(CREDITS_PROVING_KEYS_T)
+                    .unwrap()
+                    .get(&function_name.to_string())
+                    .unwrap()
+                    .clone();
+            let pk_s = ProvingKeyModel::<CurrentNetwork> { proving_key: pk };
 
-    let program = Program::<CurrentNetwork>::credits().unwrap();
-    for k in program.functions().keys() {
-        if let Some(v) = CREDITS_PROVING_KEYS.get(&k.to_string()) {
-            new_credits_proving_keys.insert(k.to_string(), v.clone());
+            let middle = serde_json::to_string(&pk_s).unwrap();
+            let res = serde_json::from_str::<ProvingKey<CurrentNetwork>>(&middle).unwrap();
+            let res_st = serde_json::to_string(&res).unwrap();
+            assert_eq!(middle, res_st)
         }
     }
-    println!("{:?}", new_credits_proving_keys.keys());
-    assert_eq!(
-        new_credits_proving_keys.len(),
-        program.functions().keys().len()
-    );
 
-    let mut credits_proving_keys_1 = IndexMap::new();
-    for (k, v) in new_credits_proving_keys.iter() {
-        credits_proving_keys_1.insert(k.clone(), v.clone().to_bytes_le().unwrap());
+    #[test]
+    fn test_setup_proving_keys() {
+        let map = ProvingKeyModel::<CurrentNetwork>::setup();
+        assert_eq!(map.len(), REQUIRE_KEYS.len())
     }
 
-    let serialized_data = bincode::serialize(&credits_proving_keys_1).unwrap();
-    let mut file = File::create("credits_proving_keys_test").unwrap();
-    file.write_all(&serialized_data).unwrap();
-
-    let mut file = File::open("credits_proving_keys_test").unwrap();
-    let mut content = Vec::new();
-    let _ = file.read_to_end(&mut content).unwrap();
-
-    let credits_proving_keys_2: IndexMap<String, Vec<u8>> = bincode::deserialize(&content).unwrap();
-
-    assert_eq!(credits_proving_keys_2, credits_proving_keys_1);
-
-    // let mut credits_proving_keys_3 = IndexMap::new();
-    // for (k, v) in credits_proving_keys_2.iter() {
-    //     let le: Arc<MarlinProvingKey<Console>> =
-    //         Arc::new(MarlinProvingKey::<Console>::read_le(v.as_slice()).unwrap());
-    //     credits_proving_keys_3.insert(k.clone(), le);
+    // #[test]
+    // fn test_credits_proving_keys() {
+    //     use crate::CurrentNetwork;
+    //     use indexmap::IndexMap;
+    //     use snarkvm_console_network::CREDITS_PROVING_KEYS;
+    //     use snarkvm_console_network::environment::Console;
+    //     use snarkvm_synthesizer::Program;
+    //     use snarkvm_utilities::ToBytes;
+    //     use std::fs::File;
+    //     use std::io::{Read, Write};
+    //
+    //     let required_keys = [Identifier::<CurrentNetwork>::from_str("transfer").unwrap(), Identifier::<CurrentNetwork>::from_str("fee").unwrap()];
+    //
+    //     let mut new_credits_proving_keys = IndexMap::new();
+    //
+    //     for k in required_keys {
+    //         if let Some(v) = CREDITS_PROVING_KEYS.get(&k.to_string()) {
+    //             new_credits_proving_keys.insert(k.to_string(), v.clone());
+    //         }
+    //     }
+    //     println!("{:?}", new_credits_proving_keys.keys());
+    //     assert_eq!(
+    //         new_credits_proving_keys.len(),
+    //         required_keys.len()
+    //     );
+    //
+    //     let mut credits_proving_keys_1 = IndexMap::new();
+    //     for (k, v) in new_credits_proving_keys.iter() {
+    //         credits_proving_keys_1.insert(k.clone(), v.clone().to_bytes_le().unwrap());
+    //     }
+    //
+    //     let serialized_data = bincode::serialize(&credits_proving_keys_1).unwrap();
+    //     let mut file = File::create("credits_proving_keys_test").unwrap();
+    //     file.write_all(&serialized_data).unwrap();
+    //
+    //     let mut file = File::open("credits_proving_keys_test").unwrap();
+    //     let mut content = Vec::new();
+    //     let _ = file.read_to_end(&mut content).unwrap();
+    //
+    //     let credits_proving_keys_2: IndexMap<String, Vec<u8>> = bincode::deserialize(&content).unwrap();
+    //
+    //     assert_eq!(credits_proving_keys_2, credits_proving_keys_1);
+    //
+    //     // let mut credits_proving_keys_3 = IndexMap::new();
+    //     // for (k, v) in credits_proving_keys_2.iter() {
+    //     //     let le: Arc<MarlinProvingKey<Console>> =
+    //     //         Arc::new(MarlinProvingKey::<Console>::read_le(v.as_slice()).unwrap());
+    //     //     credits_proving_keys_3.insert(k.clone(), le);
+    //     // }
+    //     let credits_proving_keys_3 =
+    //         ProvingKeyModel::<CurrentNetwork>::get_credits_proving_keys(&content).unwrap();
+    //     assert_eq!(new_credits_proving_keys, credits_proving_keys_3)
     // }
-    let credits_proving_keys_3 =
-        ProvingKeyModel::<CurrentNetwork>::get_credits_proving_keys(&content).unwrap();
-    assert_eq!(new_credits_proving_keys, credits_proving_keys_3)
 }

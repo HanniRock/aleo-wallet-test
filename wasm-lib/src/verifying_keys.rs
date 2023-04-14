@@ -5,7 +5,7 @@
  *
  * This file is part of aleo-wallet-test.
  */
-use crate::transfer::CREDITS_VERIFYING_KEYS_T;
+use crate::transfer::{CREDITS_VERIFYING_KEYS_T, REQUIRE_KEYS};
 use crate::utils::MarlinVerifyingKey;
 use crate::CurrentNetwork;
 use indexmap::IndexMap;
@@ -27,14 +27,18 @@ pub(crate) struct VerifyingKeyModel<N: Network> {
 }
 
 impl<N: Network> VerifyingKeyModel<N> {
-    pub(crate) fn setup(program: &Program<N>) -> IndexMap<String, VerifyingKey<N>> {
+    pub(crate) fn setup() -> IndexMap<String, VerifyingKey<N>> {
         let mut credits_verifying_keys =
             Self::get_credits_verifying_keys(CREDITS_VERIFYING_KEYS_T).unwrap();
         let mut cache = IndexMap::new();
-        for function_name in program.functions().keys() {
-            let vk = credits_verifying_keys
-                .remove(&function_name.to_string())
-                .unwrap();
+        for function_name in REQUIRE_KEYS.into_iter() {
+            let vk = match credits_verifying_keys
+                .remove(&function_name.to_string()) {
+                None => {
+                    continue;
+                }
+                Some(vk) => vk
+            };
             let vk_s = VerifyingKeyModel::<N> { verifying_key: vk };
 
             let mut middle = serde_json::to_string(&vk_s).unwrap();
@@ -93,81 +97,90 @@ impl<N: Network> ToBytes for VerifyingKeyModel<N> {
     }
 }
 
-#[test]
-fn test_serialize_verifying_key() {
-    use super::*;
+mod verifying_keys_tests {
+    use std::str::FromStr;
+    use snarkvm_console_program::Identifier;
     use snarkvm_synthesizer::Program;
-    use snarkvm_synthesizer::VerifyingKey;
-
-    let program = Program::<CurrentNetwork>::credits().unwrap();
-    for function_name in program.functions().keys() {
-        let vk = VerifyingKeyModel::<CurrentNetwork>::get_credits_verifying_keys(
-            CREDITS_VERIFYING_KEYS_T,
-        )
-        .unwrap()
-        .get(&function_name.to_string())
-        .unwrap()
-        .clone();
-        let vk_s = VerifyingKeyModel::<CurrentNetwork> { verifying_key: vk };
-
-        let middle = serde_json::to_string(&vk_s).unwrap();
-        let res = serde_json::from_str::<VerifyingKey<CurrentNetwork>>(&middle).unwrap();
-        let res_st = serde_json::to_string(&res).unwrap();
-        assert_eq!(middle, res_st)
-    }
-}
-
-#[test]
-fn test_setup_verifying_keys() {
-    let program = Program::<CurrentNetwork>::credits().unwrap();
-    let map = VerifyingKeyModel::<CurrentNetwork>::setup(&program);
-    assert_eq!(map.len(), program.functions().len())
-}
-
-#[test]
-fn test_credits_verifying_keys() {
     use crate::CurrentNetwork;
-    use indexmap::IndexMap;
-    use snarkvm_console_network::CREDITS_VERIFYING_KEYS;
-    use snarkvm_console_network::environment::Console;
-    use snarkvm_synthesizer::Program;
-    use snarkvm_utilities::ToBytes;
-    use std::fs::File;
-    use std::io::{Read, Write};
+    use crate::transfer::REQUIRE_KEYS;
+    use crate::verifying_keys::VerifyingKeyModel;
 
-    let mut new_credits_verifying_keys = IndexMap::new();
+    #[test]
+    fn test_serialize_verifying_key() {
+        use super::*;
+        use snarkvm_synthesizer::Program;
+        use snarkvm_synthesizer::VerifyingKey;
 
-    let program = Program::<CurrentNetwork>::credits().unwrap();
-    for k in program.functions().keys() {
-        if let Some(v) = CREDITS_VERIFYING_KEYS.get(&k.to_string()) {
-            new_credits_verifying_keys.insert(k.to_string(), v.clone());
+        let program = Program::<CurrentNetwork>::credits().unwrap();
+        for function_name in program.functions().keys() {
+            let vk = VerifyingKeyModel::<CurrentNetwork>::get_credits_verifying_keys(
+                CREDITS_VERIFYING_KEYS_T,
+            )
+                .unwrap()
+                .get(&function_name.to_string())
+                .unwrap()
+                .clone();
+            let vk_s = VerifyingKeyModel::<CurrentNetwork> { verifying_key: vk };
+
+            let middle = serde_json::to_string(&vk_s).unwrap();
+            let res = serde_json::from_str::<VerifyingKey<CurrentNetwork>>(&middle).unwrap();
+            let res_st = serde_json::to_string(&res).unwrap();
+            assert_eq!(middle, res_st)
         }
     }
-    println!("{:?}", new_credits_verifying_keys.keys());
-    assert_eq!(
-        new_credits_verifying_keys.len(),
-        program.functions().keys().len()
-    );
 
-    let mut credits_verifying_keys_1 = IndexMap::new();
-    for (k, v) in new_credits_verifying_keys.iter() {
-        credits_verifying_keys_1.insert(k.clone(), v.clone().to_bytes_le().unwrap());
+    #[test]
+    fn test_setup_verifying_keys() {
+        let map = VerifyingKeyModel::<CurrentNetwork>::setup();
+        assert_eq!(map.len(), REQUIRE_KEYS.len())
     }
 
-    let serialized_data = bincode::serialize(&credits_verifying_keys_1).unwrap();
-    let mut file = File::create("credits_verifying_keys_test").unwrap();
-    file.write_all(&serialized_data).unwrap();
+    #[test]
+    fn test_credits_verifying_keys() {
+        use crate::CurrentNetwork;
+        use indexmap::IndexMap;
+        use snarkvm_console_network::CREDITS_VERIFYING_KEYS;
+        use snarkvm_console_network::environment::Console;
+        use snarkvm_synthesizer::Program;
+        use snarkvm_utilities::ToBytes;
+        use std::fs::File;
+        use std::io::{Read, Write};
 
-    let mut file = File::open("credits_verifying_keys_test").unwrap();
-    let mut content = Vec::new();
-    let _ = file.read_to_end(&mut content).unwrap();
+        let mut new_credits_verifying_keys = IndexMap::new();
 
-    let credits_verifying_keys_2: IndexMap<String, Vec<u8>> =
-        bincode::deserialize(&content).unwrap();
+        let required_keys = [Identifier::<CurrentNetwork>::from_str("transfer").unwrap(), Identifier::<CurrentNetwork>::from_str("fee").unwrap()];
 
-    assert_eq!(credits_verifying_keys_2, credits_verifying_keys_1);
+        for k in required_keys {
+            if let Some(v) = CREDITS_VERIFYING_KEYS.get(&k.to_string()) {
+                new_credits_verifying_keys.insert(k.to_string(), v.clone());
+            }
+        }
+        println!("{:?}", new_credits_verifying_keys.keys());
+        assert_eq!(
+            new_credits_verifying_keys.len(),
+            required_keys.len()
+        );
 
-    let credits_verifying_keys_3 =
-        VerifyingKeyModel::<CurrentNetwork>::get_credits_verifying_keys(&content).unwrap();
-    assert_eq!(new_credits_verifying_keys, credits_verifying_keys_3)
+        let mut credits_verifying_keys_1 = IndexMap::new();
+        for (k, v) in new_credits_verifying_keys.iter() {
+            credits_verifying_keys_1.insert(k.clone(), v.clone().to_bytes_le().unwrap());
+        }
+
+        let serialized_data = bincode::serialize(&credits_verifying_keys_1).unwrap();
+        let mut file = File::create("credits_verifying_keys_test").unwrap();
+        file.write_all(&serialized_data).unwrap();
+
+        let mut file = File::open("credits_verifying_keys_test").unwrap();
+        let mut content = Vec::new();
+        let _ = file.read_to_end(&mut content).unwrap();
+
+        let credits_verifying_keys_2: IndexMap<String, Vec<u8>> =
+            bincode::deserialize(&content).unwrap();
+
+        assert_eq!(credits_verifying_keys_2, credits_verifying_keys_1);
+
+        let credits_verifying_keys_3 =
+            VerifyingKeyModel::<CurrentNetwork>::get_credits_verifying_keys(&content).unwrap();
+        assert_eq!(new_credits_verifying_keys, credits_verifying_keys_3)
+    }
 }
