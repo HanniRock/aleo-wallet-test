@@ -158,12 +158,15 @@ mod tests {
     use std::str::FromStr;
     use circuit::AleoV0;
     use rand::Rng;
+    use reqwest::{Error, Response};
     use snarkvm_console_account::{Address, PrivateKey};
     use snarkvm_console_network::prelude::CryptoRng;
     use snarkvm_console_program::{Identifier, Plaintext, Record, Request, Value};
-    use snarkvm_synthesizer::{Authorization, CallStack, ConsensusMemory, ConsensusStore, Program, VM};
+    use snarkvm_synthesizer::{Authorization, CallStack, ConsensusMemory, ConsensusStore, Program, Transaction, VM};
     use wasm_bindgen_test::{console_log, wasm_bindgen_test, wasm_bindgen_test_configure};
     use crate::CurrentNetwork;
+    use crate::utils::post_request;
+    use serde::{Serialize, Deserialize};
     wasm_bindgen_test_configure!(run_in_browser);
 
     const TRANSFER_CONF_DATA: &[u8] = include_bytes!("transfer_conf");
@@ -206,8 +209,15 @@ mod tests {
     }
 
 
-    #[test]
-    fn test_transfer() {
+    #[tokio::test]
+    async fn test_transfer() {
+        #[derive(Clone, Debug, Serialize, Deserialize)]
+        pub struct MyRequest {
+            request: Request<CurrentNetwork>,
+            fee_request: Option<Request<CurrentNetwork>>,
+            fee_record: Option<String>,
+            fee: Option<u64>,
+        }
         type CurrentAleo = AleoV0;
         let file_contents = std::str::from_utf8(TRANSFER_CONF_DATA).unwrap();
         let conf = file_contents
@@ -237,20 +247,32 @@ mod tests {
 
         let request = Request::<CurrentNetwork>::sign(&private_key, *program.id(), function_name, &mut inputs.into_iter(), &input_types, rng).unwrap();
 
-        // Initialize the authorization.
-        let authorization = Authorization::new(&[request.clone()]);
-        // Construct the call stack.
-        let private_key_new = PrivateKey::<CurrentNetwork>::from_str("APrivateKey1zkp45SGETknN6H1ZYwAFgkyj9MJ1nBdS2zdz7vYzLewnWKX").unwrap();
-        let call_stack = CallStack::Authorize(vec![request], private_key_new, authorization.clone());
+        //TODO test fee
 
-        // Initialize the consensus store.
-        let store = ConsensusStore::<CurrentNetwork, ConsensusMemory<CurrentNetwork>>::open(None).unwrap();
-        // Initialize a new VM.
-        let vm = VM::from(store).unwrap();
-        let binding = vm.process();
-        let binding = binding.write();
-        let stack = binding.get_stack(program.id()).unwrap();
-        let result = stack.execute_function::<CurrentAleo, _>(call_stack, rng).unwrap();
-        println!("{:?}", result);
+        let req = MyRequest {
+            request,
+            fee_request: None,
+            fee_record: None,
+            fee: None,
+        };
+
+        let client = reqwest::Client::new();
+        let url = "http://127.0.0.1:17777/execute_function";
+        let body = serde_json::to_string(&req).unwrap();
+        let response = client.post(url).body(body).send().await.unwrap();
+        let response_body = response.text().await.unwrap();
+
+        println!("from vm server: {:?}", response_body);
+        // broadcast
+        let transaction = Transaction::<CurrentNetwork>::from_str(&response_body).unwrap();
+        let broadcast_url = conf[2].clone();
+        match client.post(broadcast_url).body(response_body).send().await {
+            Ok(response) => {
+                assert_eq!(response.text().await.unwrap(), transaction.id().to_string())
+            }
+            Err(e) => {
+                println!("faile to broadcast {}", e);
+            }
+        }
     }
 }

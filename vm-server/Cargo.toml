@@ -1,0 +1,25 @@
+[package]
+name = "vm-server"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+snarkvm-console-program = { version = "0.9.16" }
+snarkvm-console-network = { version = "0.9.16" }
+snarkvm-synthesizer = "0.9.16"
+snarkvm-console-account = "0.9.16"
+warp = "0.3"
+tracing = "0.1.37"
+tokio = { version = "1.27", features = ["macros", "rt-multi-thread"] }
+anyhow = "1"
+rand = "0.8.5"
+parking_lot = "0.12"
+aleo-std = "0.1.15"
+serde = "1"
+lazy_static = "1.4"
+
+[dependencies.circuit]
+package = "snarkvm-circuit"
+version = "0.9.16"
