@@ -262,13 +262,15 @@ mod tests {
         let response = client.post(url).body(body).send().await.unwrap();
         let response_body = response.text().await.unwrap();
 
-        println!("from vm server: {:?}", response_body);
+        // println!("from vm server: {:?}", response_body);
         // broadcast
         let transaction = Transaction::<CurrentNetwork>::from_str(&response_body).unwrap();
         let broadcast_url = conf[2].clone();
         match client.post(broadcast_url).body(response_body).send().await {
             Ok(response) => {
-                assert_eq!(response.text().await.unwrap(), transaction.id().to_string())
+                let id = response.text().await.unwrap();
+                println!("transaction_id: {}", id);
+                assert_eq!(id, transaction.id().to_string())
             }
             Err(e) => {
                 println!("faile to broadcast {}", e);
