@@ -48,7 +48,7 @@ const App = () => {
 
     return (
         <div>
-            <h1>请输入参数</h1>
+            <h1>请输入Sacn参数</h1>
             <form onSubmit={handleSubmit}>
                 <label htmlFor="private_key">Private Key (可选):</label>
                 <input
