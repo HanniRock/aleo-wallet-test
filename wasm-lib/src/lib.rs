@@ -56,21 +56,23 @@ pub async fn request_records(
 pub async fn transfer(
     private_key: String,
     record: String,
+    fee_record: Option<String>,
     amount: u64,
+    fee: Option<u64>,
     recipient: String,
-    query_endpoint: String,
     broadcast: String,
 ) -> String {
     match transfer_internal::<CurrentNetwork>(
         private_key,
         record,
+        fee_record,
         amount,
+        fee,
         recipient,
-        query_endpoint,
-        broadcast,
-    )
+        broadcast
+    ).await
     {
-        Ok(transaction) => transaction,
+        Ok(transaction_id) => transaction_id,
         Err(e) => format!("error: {}", e),
     }
 }

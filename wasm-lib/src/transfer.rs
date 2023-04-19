@@ -16,7 +16,7 @@ use snarkvm_console_account::address::Address;
 use snarkvm_console_account::PrivateKey;
 use snarkvm_console_network::Network;
 use snarkvm_console_network::environment::Console;
-use snarkvm_console_program::{Identifier, Locator, Plaintext, ProgramID, Record, Request, Value};
+use snarkvm_console_program::{Identifier, Locator, Plaintext, ProgramID, Record, Request, U64, Value};
 use snarkvm_synthesizer::{Authorization, CallStack, ConsensusMemory, ConsensusStore, Process, Program, ProvingKey, Query, Transaction, VerifyingKey, VM};
 use snarkvm_utilities::ToBytes;
 use std::cell::RefCell;
@@ -25,13 +25,23 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use wasm_bindgen_futures::JsFuture;
+use serde::Serialize;
 
-pub(crate) fn transfer_internal<N: Network>(
+#[derive(Clone, Debug, Serialize)]
+pub struct TransferRequest<N: Network> {
+    request: Request<N>,
+    fee_request: Option<Request<N>>,
+    fee_record: Option<String>,
+    fee: Option<u64>,
+}
+
+pub(crate) async fn transfer_internal<N: Network>(
     private_key: String,
     record: String,
+    fee_record: Option<String>,
     amount: u64,
+    fee: Option<u64>,
     recipient: String,
-    query_endpoint: String,
     broadcast: String,
 ) -> anyhow::Result<String> {
     // Initialize an RNG.
@@ -56,99 +66,45 @@ pub(crate) fn transfer_internal<N: Network>(
 
     let request = Request::<N>::sign(&private_key, *program.id(), function_name, &mut inputs.into_iter(), &input_types, rng)?;
 
-    Ok(request.to_string())
-}
-
-async fn handle_transaction<N: Network>(
-    broadcast: Option<String>,
-    display: bool,
-    store: Option<String>,
-    transaction: Transaction<N>,
-    operation: String,
-) -> anyhow::Result<String> {
-    // Get the transaction id.
-    let transaction_id = transaction.id();
-
-    // Determine if the transaction should be stored.
-    if let Some(path) = store {
-        match PathBuf::from_str(&path) {
-            Ok(file_path) => {
-                let transaction_bytes = transaction.to_bytes_le()?;
-                std::fs::write(&file_path, transaction_bytes)?;
-                println!(
-                    "Transaction {transaction_id} was stored to {}",
-                    file_path.display()
-                );
-            }
-            Err(err) => {
-                println!("The transaction was unable to be stored due to: {err}");
-            }
-        }
+    let mut transfer_request = TransferRequest {
+        request,
+        fee_request: None,
+        fee_record: None,
+        fee: None,
     };
 
-    // Determine if the transaction should be broadcast or displayed to user.
-    if let Some(endpoint) = broadcast {
-        // Send the deployment request to the local development node.
-        let transaction_json = serde_json::to_value(&transaction)?;
-        match post_request(&endpoint, &transaction_json).await {
-            Ok(response) => {
-                let response_text_future = response
-                    .text()
-                    .map_err(|js_value| anyhow::Error::msg(format!("{:?}", js_value)))?;
-                let response_text = JsFuture::from(response_text_future)
-                    .await
-                    .map_err(|js_value| anyhow::Error::msg(format!("{:?}", js_value)))?;
-                let response_text_str = response_text.as_string().unwrap_or_default();
-                let id: serde_json::Value = from_str(&response_text_str)?;
-                ensure!(
-                    id == transaction_id.to_string(),
-                    "The response does not match the transaction id"
-                );
+    if let Some(fee_record) = fee_record {
+        let fee_record_raw = Record::<N, Plaintext<N>>::from_str(&fee_record)?;
+        let fee_inputs = [Value::Record(fee_record_raw), Value::from_str(&format!("{}", U64::<N>::new(fee.unwrap_or_default())))?];
+        let fee_function_name = Identifier::<N>::from_str("fee")?;
+        let fee_input_types = program.get_function(&fee_function_name)?.input_types();
+        let fee_request = Request::<N>::sign(&private_key, *program.id(), fee_function_name, &mut fee_inputs.into_iter(), &fee_input_types, rng)?;
+        transfer_request.fee = Some(fee.unwrap_or_default());
+        transfer_request.fee_record = Some(fee_record);
+        transfer_request.fee_request = Some(fee_request);
+    }
 
-                match transaction {
-                    Transaction::Deploy(..) => {
-                        println!("✅ Successfully deployed '{}' to {}.", operation, endpoint)
-                    }
-                    Transaction::Execute(..) => {
-                        println!(
-                            "✅ Successfully broadcast execution '{}' to the {}.",
-                            operation, endpoint
-                        )
-                    }
-                }
+    // send to vm server
+    let client = reqwest::Client::new();
+    let url = "http://127.0.0.1:17777/execute_function";
+    let body = serde_json::to_string(&transfer_request).map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    let response = client.post(url).body(body).send().await.map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    let response_body = response.text().await.map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+    // broadcast
+    let transaction = Transaction::<CurrentNetwork>::from_str(&response_body)?;
+    match client.post(broadcast).body(response_body).send().await {
+        Ok(response) => {
+            let id = response.text().await.map_err(|e| anyhow::Error::new(e))?;
+            if id.eq(&transaction.id().to_string()) {
+                Ok(format!("transaction_id: {}", id))
+            } else {
+                Err(anyhow::Error::msg("failed to broadcast: transaction id not met"))
             }
-            Err(error) => {
-                let error_message = format!("({})", error);
-
-                match transaction {
-                    Transaction::Deploy(..) => {
-                        bail!(
-                            "❌ Failed to deploy '{}' to {}: {}",
-                            operation,
-                            &endpoint,
-                            error_message
-                        )
-                    }
-                    Transaction::Execute(..) => {
-                        bail!(
-                            "❌ Failed to broadcast execution '{}' to {}: {}",
-                            operation,
-                            &endpoint,
-                            error_message
-                        )
-                    }
-                }
-            }
-        };
-
-        // Output the transaction id.
-        Ok(transaction_id.to_string())
-    } else if display {
-        // Output the transaction string.
-        Ok(transaction.to_string())
-    } else {
-        // TODO (raychu86): Handle the case where the user does not specify a broadcast or display flag.
-        Ok("".to_string())
+        }
+        Err(e) => {
+            Err(anyhow::Error::msg(format!("failed to broadcast: {}", e)))
+        }
     }
 }
 
@@ -161,7 +117,7 @@ mod tests {
     use reqwest::{Error, Response};
     use snarkvm_console_account::{Address, PrivateKey};
     use snarkvm_console_network::prelude::CryptoRng;
-    use snarkvm_console_program::{Identifier, Plaintext, Record, Request, Value};
+    use snarkvm_console_program::{Identifier, Plaintext, Record, Request, U64, Value};
     use snarkvm_synthesizer::{Authorization, CallStack, ConsensusMemory, ConsensusStore, Program, Transaction, VM};
     use wasm_bindgen_test::{console_log, wasm_bindgen_test, wasm_bindgen_test_configure};
     use crate::CurrentNetwork;
@@ -188,12 +144,13 @@ mod tests {
         let msg = transfer_internal::<CurrentNetwork>(
             conf[0].clone(),
             conf[3].clone(),
+            Some(conf[6].clone()),
             u64::from_str(&conf[4]).unwrap(),
+            Some(u64::from_str(&conf[7]).unwrap()),
             conf[5].clone(),
-            conf[1].clone(),
             conf[2].clone(),
         )
-            .unwrap();
+            .await.unwrap();
         console_log!("{}", msg)
     }
 
@@ -209,72 +166,79 @@ mod tests {
     }
 
 
-    #[tokio::test]
-    async fn test_transfer() {
-        #[derive(Clone, Debug, Serialize, Deserialize)]
-        pub struct MyRequest {
-            request: Request<CurrentNetwork>,
-            fee_request: Option<Request<CurrentNetwork>>,
-            fee_record: Option<String>,
-            fee: Option<u64>,
-        }
-        type CurrentAleo = AleoV0;
-        let file_contents = std::str::from_utf8(TRANSFER_CONF_DATA).unwrap();
-        let conf = file_contents
-            .split('\n')
-            .map(|c| c.to_string())
-            .collect::<Vec<String>>();
-
-        // Initialize an RNG.
-        let rng = &mut rand::thread_rng();
-
-        let record = Record::<CurrentNetwork, Plaintext<CurrentNetwork>>::from_str(&conf[3].clone()).unwrap();
-        let recipient = Address::<CurrentNetwork>::from_str(&conf[5].clone()).unwrap();
-
-        let inputs = vec![
-            Value::Record(record.clone()),
-            Value::from_str(&format!("{}", recipient)).unwrap(),
-            Value::from_str(&format!("{}u64", u64::from_str(&conf[4]).unwrap())).unwrap(),
-        ];
-
-        let program = Program::<CurrentNetwork>::credits().unwrap();
-
-        // Initialize the 'credits.aleo' program.
-        let function_name = Identifier::<CurrentNetwork>::from_str("transfer").unwrap();
-        // Retrieve the private key.
-        let private_key = PrivateKey::<CurrentNetwork>::from_str(&conf[0].clone()).unwrap();
-        let input_types = program.get_function(&function_name).unwrap().input_types();
-
-        let request = Request::<CurrentNetwork>::sign(&private_key, *program.id(), function_name, &mut inputs.into_iter(), &input_types, rng).unwrap();
-
-        //TODO test fee
-
-        let req = MyRequest {
-            request,
-            fee_request: None,
-            fee_record: None,
-            fee: None,
-        };
-
-        let client = reqwest::Client::new();
-        let url = "http://127.0.0.1:17777/execute_function";
-        let body = serde_json::to_string(&req).unwrap();
-        let response = client.post(url).body(body).send().await.unwrap();
-        let response_body = response.text().await.unwrap();
-
-        // println!("from vm server: {:?}", response_body);
-        // broadcast
-        let transaction = Transaction::<CurrentNetwork>::from_str(&response_body).unwrap();
-        let broadcast_url = conf[2].clone();
-        match client.post(broadcast_url).body(response_body).send().await {
-            Ok(response) => {
-                let id = response.text().await.unwrap();
-                println!("transaction_id: {}", id);
-                assert_eq!(id, transaction.id().to_string())
-            }
-            Err(e) => {
-                println!("faile to broadcast {}", e);
-            }
-        }
-    }
+    // #[tokio::test]
+    // async fn test_transfer() {
+    //     #[derive(Clone, Debug, Serialize, Deserialize)]
+    //     pub struct MyRequest {
+    //         request: Request<CurrentNetwork>,
+    //         fee_request: Option<Request<CurrentNetwork>>,
+    //         fee_record: Option<String>,
+    //         fee: Option<u64>,
+    //     }
+    //     let file_contents = std::str::from_utf8(TRANSFER_CONF_DATA).unwrap();
+    //     let conf = file_contents
+    //         .split('\n')
+    //         .map(|c| c.to_string())
+    //         .collect::<Vec<String>>();
+    //
+    //     // Initialize an RNG.
+    //     let rng = &mut rand::thread_rng();
+    //
+    //     let record = Record::<CurrentNetwork, Plaintext<CurrentNetwork>>::from_str(&conf[3].clone()).unwrap();
+    //     let recipient = Address::<CurrentNetwork>::from_str(&conf[5].clone()).unwrap();
+    //
+    //     let inputs = vec![
+    //         Value::Record(record.clone()),
+    //         Value::from_str(&format!("{}", recipient)).unwrap(),
+    //         Value::from_str(&format!("{}u64", u64::from_str(&conf[4]).unwrap())).unwrap(),
+    //     ];
+    //
+    //     let program = Program::<CurrentNetwork>::credits().unwrap();
+    //
+    //     // Initialize the 'credits.aleo' program.
+    //     let function_name = Identifier::<CurrentNetwork>::from_str("transfer").unwrap();
+    //     // Retrieve the private key.
+    //     let private_key = PrivateKey::<CurrentNetwork>::from_str(&conf[0].clone()).unwrap();
+    //     let input_types = program.get_function(&function_name).unwrap().input_types();
+    //
+    //     let request = Request::<CurrentNetwork>::sign(&private_key, *program.id(), function_name, &mut inputs.into_iter(), &input_types, rng).unwrap();
+    //
+    //     //TODO test fee
+    //     let fee_record = Record::<CurrentNetwork, Plaintext<CurrentNetwork>>::from_str(&conf[6].clone()).unwrap();
+    //     let fee_inputs = [Value::Record(fee_record.clone()), Value::from_str(&format!("{}", U64::<CurrentNetwork>::new(200))).unwrap()];
+    //     let fee_function_name = Identifier::<CurrentNetwork>::from_str("fee").unwrap();
+    //     let fee_input_types = program.get_function(&fee_function_name).unwrap().input_types();
+    //     let fee_request = Request::<CurrentNetwork>::sign(&private_key, *program.id(), fee_function_name, &mut fee_inputs.into_iter(), &fee_input_types, rng).unwrap();
+    //
+    //
+    //     let req = MyRequest {
+    //         request,
+    //         fee_request: Some(fee_request),
+    //         fee_record: Some(fee_record.to_string()),
+    //         fee: Some(200),
+    //     };
+    //
+    //     let client = reqwest::Client::new();
+    //     let url = "http://127.0.0.1:17777/execute_function";
+    //     let body = serde_json::to_string(&req).unwrap();
+    //     let response = client.post(url).body(body).send().await.unwrap();
+    //     let response_body = response.text().await.unwrap();
+    //
+    //     println!("response_body {}", response_body);
+    //
+    //     // println!("from vm server: {:?}", response_body);
+    //     // broadcast
+    //     let transaction = Transaction::<CurrentNetwork>::from_str(&response_body).unwrap();
+    //     let broadcast_url = conf[2].clone();
+    //     match client.post(broadcast_url).body(response_body).send().await {
+    //         Ok(response) => {
+    //             let id = response.text().await.unwrap();
+    //             println!("transaction_id: {}", id);
+    //             assert_eq!(id, transaction.id().to_string())
+    //         }
+    //         Err(e) => {
+    //             println!("faile to broadcast {}", e);
+    //         }
+    //     }
+    // }
 }

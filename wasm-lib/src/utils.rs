@@ -1,10 +1,6 @@
-use indexmap::IndexMap;
 use snarkvm_console_account::{PrivateKey, ViewKey};
-use snarkvm_console_network::environment::Environment;
 use snarkvm_console_program::Network;
-use snarkvm_utilities::FromBytes;
 use std::str::FromStr;
-use std::sync::Arc;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Request, RequestInit, Response};
