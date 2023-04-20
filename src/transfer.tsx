@@ -34,8 +34,8 @@ const Transfer = () => {
             broadcast: broadcast,
         });
         try {
-            const records = transfer(privateKey, record, fee_record, BigInt(amount), BigInt(fee!), recipient, broadcast);
-            console.log(records);
+            const id = await transfer(privateKey, record, fee_record, BigInt(amount), BigInt(fee!), recipient, broadcast);
+            console.log(id);
         } catch (error) {
             console.error("Failed to request records:", error);
         }
