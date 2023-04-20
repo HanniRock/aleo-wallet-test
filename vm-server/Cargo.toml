@@ -18,7 +18,6 @@ rand = "0.8.5"
 parking_lot = "0.12"
 aleo-std = "0.1.15"
 serde = "1"
-lazy_static = "1.4"
 
 [dependencies.circuit]
 package = "snarkvm-circuit"
