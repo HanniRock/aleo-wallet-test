@@ -77,7 +77,7 @@ fn routes() -> impl Filter<Extract=(impl Reply, ), Error=Rejection> + Clone {
 async fn execute_function(request: MyRequest) -> anyhow::Result<impl Reply, Rejection> {
     let stack = VM_INSTANCE.process().read().get_stack(request.request.program_id()).or_reject()?.clone();
     let authorization = Authorization::new(&[request.request.clone()]);
-    let private_key = PrivateKey::<Testnet3>::from_str("APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH").unwrap();
+    let private_key = PrivateKey::<Testnet3>::from_str("APrivateKey1zkp5EYonCQEWFuTA3mDDgdun3dQhp4pMXZs9wuSZAKzcHAr").unwrap();
     // Construct the call stack.
     let call_stack = CallStack::Authorize(vec![request.request], private_key, authorization.clone());
     // Initialize an RNG.
