@@ -178,7 +178,6 @@ mod tests {
 
         let request = Request::<CurrentNetwork>::sign(&private_key, *program.id(), function_name, &mut inputs.into_iter(), &input_types, rng).unwrap();
 
-        //TODO test fee
         let fee_record = Record::<CurrentNetwork, Plaintext<CurrentNetwork>>::from_str(&conf[6].clone()).unwrap();
         let fee_inputs = [Value::Record(fee_record.clone()), Value::from_str(&format!("{}", U64::<CurrentNetwork>::new(200))).unwrap()];
         let fee_function_name = Identifier::<CurrentNetwork>::from_str("fee").unwrap();
@@ -248,7 +247,6 @@ mod tests {
 
         let request = Request::<CurrentNetwork>::sign(&private_key, *program.id(), function_name, &mut inputs.into_iter(), &input_types, rng).unwrap();
 
-        //TODO test fee
         let fee_record = Record::<CurrentNetwork, Plaintext<CurrentNetwork>>::from_str(&conf[6].clone()).unwrap();
         let fee_inputs = [Value::Record(fee_record.clone()), Value::from_str(&format!("{}", U64::<CurrentNetwork>::new(200))).unwrap()];
         let fee_function_name = Identifier::<CurrentNetwork>::from_str("fee").unwrap();
